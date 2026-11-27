@@ -39,7 +39,7 @@ export default function InstallApp() {
     }
   }
 
-  if (installed || /HamrahSalamatAndroid/.test(navigator.userAgent)) return null;
+  if (installed || /HamrahSalamatAndroid/.test(navigator.userAgent) || new URLSearchParams(location.search).has('androidPreview')) return null;
   return <>
     <button className="install-button" onClick={() => setOpen(true)}><Download size={17}/><span>نصب برنامه</span></button>
     {open && <div className="modal-backdrop" onMouseDown={() => setOpen(false)}>
