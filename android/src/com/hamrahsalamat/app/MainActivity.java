@@ -14,6 +14,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Locale;
@@ -28,8 +29,8 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        getWindow().setStatusBarColor(0xff0b6b64);
-        getWindow().setNavigationBarColor(0xff0b6b64);
+        getWindow().setStatusBarColor(0xff5633c3);
+        getWindow().setNavigationBarColor(0xff5633c3);
         webView = new WebView(this);
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -57,6 +58,37 @@ public final class MainActivity extends Activity {
                 if (path.contains("..") || path.contains("\\")) return blocked();
                 try {
                     InputStream stream = getAssets().open("web" + path);
+                    String range = null;
+                    for (java.util.Map.Entry<String,String> header : request.getRequestHeaders().entrySet()) {
+                        if ("range".equalsIgnoreCase(header.getKey())) { range = header.getValue(); break; }
+                    }
+                    if (path.endsWith(".mp4") && range != null && range.startsWith("bytes=")) {
+                        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                        byte[] chunk = new byte[4096];
+                        int n;
+                        while ((n = stream.read(chunk)) != -1) buffer.write(chunk, 0, n);
+                        stream.close();
+                        byte[] bytes = buffer.toByteArray();
+                        String[] bounds = range.substring(6).split("-", -1);
+                        try {
+                            int start;
+                            int end;
+                            if (bounds[0].isEmpty() && bounds.length > 1 && !bounds[1].isEmpty()) {
+                                int length = Integer.parseInt(bounds[1]);
+                                start = Math.max(0, bytes.length - length);
+                                end = bytes.length - 1;
+                            } else {
+                                start = Integer.parseInt(bounds[0]);
+                                end = bounds.length > 1 && !bounds[1].isEmpty() ? Math.min(Integer.parseInt(bounds[1]), bytes.length - 1) : bytes.length - 1;
+                            }
+                            if (start < 0 || start > end || end >= bytes.length) return blocked();
+                            java.util.Map<String,String> headers = new java.util.HashMap<>();
+                            headers.put("Content-Range", "bytes " + start + "-" + end + "/" + bytes.length);
+                            headers.put("Accept-Ranges", "bytes");
+                            headers.put("Content-Length", String.valueOf(end - start + 1));
+                            return new WebResourceResponse("video/mp4", null, 206, "Partial Content", headers, new ByteArrayInputStream(bytes, start, end - start + 1));
+                        } catch (NumberFormatException ignored) { return blocked(); }
+                    }
                     return new WebResourceResponse(mime(path), null, stream);
                 } catch (IOException ignored) { return blocked(); }
             }
@@ -82,6 +114,8 @@ public final class MainActivity extends Activity {
         if (p.endsWith(".js")) return "application/javascript";
         if (p.endsWith(".css")) return "text/css";
         if (p.endsWith(".png")) return "image/png";
+        if (p.endsWith(".jpg") || p.endsWith(".jpeg")) return "image/jpeg";
+        if (p.endsWith(".mp4")) return "video/mp4";
         if (p.endsWith(".svg")) return "image/svg+xml";
         if (p.endsWith(".woff2")) return "font/woff2";
         if (p.endsWith(".woff")) return "font/woff";
