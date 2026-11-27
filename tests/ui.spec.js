@@ -1,9 +1,13 @@
 import { test, expect } from '@playwright/test';
 
+test.beforeEach(async ({ page }, testInfo) => {
+  if (!testInfo.title.startsWith('first launch')) await page.addInitScript(() => localStorage.setItem('hs-welcome-seen', 'true'));
+});
+
 test('RTL home, responsive navigation and disease tabs', async ({ page }) => {
   await page.goto('/?androidPreview=1');
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-  await expect(page.getByRole('heading', { name: 'سلامتی شما اولویت ماست' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'مراقبت از خود را از اینجا شروع کنید' })).toBeVisible();
   await page.getByRole('navigation', { name: 'ناوبری اصلی' }).getByRole('button', { name: 'آموزش' }).click();
   await page.getByRole('button', { name: /دیابت نوع ۲/ }).click();
   await page.getByRole('tab', { name: 'علائم' }).click();
@@ -96,4 +100,33 @@ test('offline Android preview generates a clearly labelled text QR', async ({ pa
   await page.getByRole('button', { name: /دریافت QR/ }).click();
   await expect(page.locator('.qr-code svg')).toBeVisible();
   await expect(page.getByText('کد آفلاین فقط نام بیماری و برنامه را به صورت متن نمایش می‌دهد.')).toBeVisible();
+});
+
+
+test('first launch shows onboarding and remembers the choice', async ({ page }) => {
+  await page.goto('/?androidPreview=1');
+  await expect(page.getByRole('heading', { name: 'آموزش به بیمار' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'شروع کنید' })).toBeVisible();
+  await page.getByRole('button', { name: 'شروع کنید' }).click();
+  await expect(page.getByRole('heading', { name: 'مراقبت از خود را از اینجا شروع کنید' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'شروع کنید' })).toHaveCount(0);
+});
+
+test('first launch login path stays explicitly demonstrative', async ({ page }) => {
+  await page.goto('/?androidPreview=1');
+  await page.getByRole('button', { name: 'ورود به حساب' }).click();
+  await expect(page.getByText('ورود نمایشی است؛ پیامک یا تأیید شماره انجام نمی‌شود.')).toBeVisible();
+  await page.getByLabel('شماره موبایل').fill('۰۹۱۲۳۴۵۶۷۸۹');
+  await page.locator('form').getByRole('button', { name: 'ورود / ثبت‌نام' }).click();
+  await expect(page.getByRole('heading', { name: 'اطلاعات بیمار' })).toBeVisible();
+});
+
+test('digestive category and tablet home are available', async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.goto('/?androidPreview=1');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+  await page.getByRole('button', { name: 'آموزش', exact: true }).click();
+  await page.getByRole('button', { name: /بیماری‌های گوارشی/ }).click();
+  await expect(page.getByRole('heading', { name: 'معرفی بیماری‌های گوارشی' })).toBeVisible();
 });
